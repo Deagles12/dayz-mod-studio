@@ -33,11 +33,11 @@ export function OutputFolder({ language, path, chooseFolder, disabled }: {
   language: Lang; path: string; chooseFolder: () => Promise<void>; disabled: boolean
 }) {
   return <div className="output-folder">
-    <div className="min-w-0">
+    <div className="grow">
       <small>{language === 'uk' ? 'Зберігати в' : 'Save to'}</small>
-      <code className="model-output-path">{path || '-'}</code>
+      <code className="model-output-path" title={path}>{path || '-'}</code>
     </div>
-    <button disabled={disabled} onClick={() => void chooseFolder()}><FolderOpen size={16}/>
+    <button className="btn-sm" disabled={disabled} onClick={() => void chooseFolder()}><FolderOpen size={15}/>
       {language === 'uk' ? 'Вибрати папку' : 'Choose folder'}
     </button>
   </div>

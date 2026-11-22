@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="uk">
+<head><meta charset="utf-8"><title>Preview frames</title>
+<style>
+  html,body{margin:0;background:#0a0b0e;font:12px/1.4 Consolas,monospace;color:#9aa}
+  .row{display:flex;gap:16px;padding:16px;align-items:flex-start}
+  figure{margin:0}
+  figcaption{padding:4px 2px;color:#8a93a6}
+  iframe{border:1px solid #2a2f3a;background:#101216;display:block}
+</style></head>
+<body>
+<div class="row" id="row"></div>
+<script>
+  const width = Number(new URLSearchParams(location.search).get('w') || 1000)
+  const height = Number(new URLSearchParams(location.search).get('h') || 900)
+  const page = new URLSearchParams(location.search).get('page') || ''
+  const frame = document.createElement('iframe')
+  frame.width = width
+  frame.height = height
+  frame.src = '/?frame=1' + (page ? '&page=' + page : '') + '&lang=' + (new URLSearchParams(location.search).get('lang') || 'uk')
+  const figure = document.createElement('figure')
+  const caption = document.createElement('figcaption')
+  caption.textContent = width + ' x ' + height
+  figure.append(frame, caption)
+  document.getElementById('row').append(figure)
+</script>
+</body>
+</html>

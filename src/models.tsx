@@ -280,7 +280,7 @@ export function Models({ language, root, settings, onStatus }: {
         <strong role="status">{exportStatus}</strong>
         {activity === 'running' && <span>{stage + 1} / {stages.length}</span>}
       </div>
-      {model && <div className="path">{model}</div>}
+      {model && <code className="model-output-path">{model}</code>}
       <progress aria-label={tr('Завершено етапів експорту', 'Completed export stages')}
         max={stages.length} value={activity === 'done' ? stages.length : activity === 'choosing' ? 0 : stage}/>
       <ol className="model-steps">
