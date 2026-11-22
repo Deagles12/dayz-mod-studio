@@ -75,25 +75,31 @@ class RuntimeValidation(unittest.TestCase):
                 with self.assertRaises(TimeoutError):
                     pipeline.wait_ready(process, 2302, 8, {})
 
-    def test_validator_rejects_unused_vertices_and_bad_indices(self):
-        def model(extra=0, bad_index=False):
+    def test_validator_checks_geometry_and_texture_references(self):
+        def model(extra=0, bad_index=False, textures=(b'data\\test.paa',)):
             out = io.BytesIO()
             out.write(struct.pack('<4sII', b'MLOD', 257, 3))
             for resolution in (1, 2, 3):
-                out.write(struct.pack('<4s6I', b'P3DM', 28, 256, 3 + extra, 3, 1, 0))
+                out.write(struct.pack('<4s6I', b'P3DM', 28, 256, 3 + extra, 3, len(textures), 0))
                 out.write(struct.pack('<3fI', 0, 0, 0, 0) * (3 + extra))
                 out.write(struct.pack('<3f', 0, 1, 0) * 3)
-                out.write(struct.pack('<I', 3))
-                for index in range(3):
-                    out.write(struct.pack('<IIff', 100 if bad_index else index, index, 0, 0))
-                out.write(bytes(20) + b'data\\test.paa\0\0TAGG\x01#EndOfFile#\0')
+                for texture in textures:
+                    out.write(struct.pack('<I', 3))
+                    for index in range(3):
+                        out.write(struct.pack('<IIff', 100 if bad_index else index, index, 0, 0))
+                    out.write(bytes(20) + texture + b'\0\0')
+                out.write(b'TAGG\x01#EndOfFile#\0')
                 out.write(struct.pack('<If', 0, resolution))
             return out.getvalue()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'test.p3d'
             path.write_bytes(model())
             self.assertEqual(len(validate_p3d(path)['lods']), 3)
-            for content in (model(extra=1), model(bad_index=True), model()[:-5]):
+            path.write_bytes(model(textures=(b'data\\test.paa', b'data\\second.paa')))
+            report = validate_p3d(path)
+            self.assertEqual(report['materials'], 2)
+            self.assertEqual(report['textures'], ['data\\second.paa', 'data\\test.paa'])
+            for content in (model(extra=1), model(bad_index=True), model(textures=(b'invalid.png',)), model()[:-5]):
                 path.write_bytes(content)
                 with self.assertRaises(ValueError):
                     validate_p3d(path)

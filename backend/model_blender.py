@@ -19,23 +19,60 @@ def progress(step):
     with (stage.parent / "progress").open("a", encoding="ascii") as file:
         file.write(f"{step}\n")
 
+
+def base_color_png(material):
+    if material is None or material.node_tree is None:
+        raise ValueError("Every mesh surface needs a textured Base Color material.")
+    shader = next((node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED"), None)
+    links = shader.inputs["Base Color"].links if shader else ()
+    image = links[0].from_node.image if links and links[0].from_node.type == "TEX_IMAGE" else None
+    if image is None or not image.packed_file:
+        raise ValueError(f"Material {material.name!r} needs an embedded Base Color texture.")
+    packed = image.packed_file.data
+    if not packed.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError(f"Material {material.name!r} needs a PNG Base Color texture.")
+    return packed
+
+
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=source)
-parts = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
-if len(parts) != 1:
-    raise ValueError("Expected a single textured mesh from the ComfyUI workflow.")
+parts = [obj for obj in bpy.context.scene.objects if obj.type == "MESH" and obj.data.polygons]
+if not parts:
+    raise ValueError("Model has no faces.")
+
+world_matrices = [part.matrix_world.copy() for part in parts]
+bpy.ops.object.select_all(action="DESELECT")
+for part, matrix in zip(parts, world_matrices):
+    if part.data.users > 1:
+        part.data = part.data.copy()
+    uv_layers = part.data.uv_layers
+    active_uv = uv_layers.active
+    if active_uv is None:
+        raise ValueError(f"Mesh {part.name!r} needs UV coordinates.")
+    active_name = active_uv.name
+    for name in list(uv_layers.keys()):
+        if name != active_name:
+            uv_layers.remove(uv_layers[name])
+    uv_layers[active_name].name = "DayZ UV"
+    part.parent = None
+    part.matrix_world = matrix
+    part.select_set(True)
+
 obj = parts[0]
 bpy.context.view_layer.objects.active = obj
-obj.select_set(True)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-if not obj.data.uv_layers.active or len(obj.data.materials) != 1:
-    raise ValueError("The GLB needs UVs and one Base Color material.")
-material = obj.data.materials[0]
-shader = next(n for n in material.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-links = shader.inputs["Base Color"].links
-img = links[0].from_node.image if links and links[0].from_node.type == "TEX_IMAGE" else None
-if img is None or not img.packed_file or not img.packed_file.data.startswith(b"\x89PNG\r\n\x1a\n"):
-    raise ValueError("Expected the Base Color to be embedded as PNG in the GLB.")
+if len(parts) > 1:
+    bpy.ops.object.join()
+
+texture_by_png = {}
+material_textures = {}
+for index in sorted({face.material_index for face in obj.data.polygons}):
+    slot = obj.material_slots[index] if index < len(obj.material_slots) else None
+    packed = base_color_png(slot.material if slot else None)
+    if packed not in texture_by_png:
+        suffix = "" if not texture_by_png else f"_{len(texture_by_png) + 1:02d}"
+        texture_by_png[packed] = f"{stem}{suffix}_co"
+    material_textures[index] = f"{prefix}\\{stem}\\data\\{texture_by_png[packed]}.paa".encode("ascii")
 
 obj.data.calc_loop_triangles()
 used = {vertex for triangle in obj.data.loop_triangles for vertex in triangle.vertices}
@@ -54,22 +91,21 @@ if extent <= 0:
 progress(2)
 data = stage / "data"
 data.mkdir()
-texture_name = stem + "_co"
 with tempfile.TemporaryDirectory(prefix="dayz-paa-") as temp:
     scratch = Path(temp)
-    png = scratch / (texture_name + ".png")
-    paa = scratch / (texture_name + ".paa")
-    png.write_bytes(img.packed_file.data)
-    subprocess.run([converter, png.name, paa.name], cwd=scratch, check=True, timeout=60)
-    with paa.open("rb") as file:
-        if file.read(2) not in (b"\x01\xff", b"\x03\xff", b"\x05\xff"):
-            raise ValueError("ImageToPAA did not return a recognized PAA texture.")
-    shutil.copyfile(paa, data / paa.name)
+    for packed, texture_name in texture_by_png.items():
+        png = scratch / (texture_name + ".png")
+        paa = scratch / (texture_name + ".paa")
+        png.write_bytes(packed)
+        subprocess.run([converter, png.name, paa.name], cwd=scratch, check=True, timeout=60)
+        with paa.open("rb") as file:
+            if file.read(2) not in (b"\x01\xff", b"\x03\xff", b"\x05\xff"):
+                raise ValueError("ImageToPAA did not return a recognized PAA texture.")
+        shutil.copyfile(paa, data / paa.name)
 
-texture = f"{prefix}\\{stem}\\data\\{texture_name}.paa"
 progress(3)
 lods = []
-report = {'uv': True, 'materials': 1, 'texture': texture, 'collision': False, 'lods': []}
+report = {'lods': []}
 for level, budget in ((1, 10000), (2, 4500), (3, 1800)):
     obj.data.calc_loop_triangles()
     count = len(obj.data.loop_triangles)
@@ -116,7 +152,7 @@ with (stage / (stem + ".p3d")).open("wb") as out:
                     raise ValueError("The model contains non-finite UV coordinates.")
                 out.write(struct.pack("<IIff", vertex_indices[vertex], normal_indices[corner], u, 1 - v))
             out.write(bytes(20))
-            out.write(texture.encode("ascii") + b"\0\0")
+            out.write(material_textures[triangle.material_index] + b"\0\0")
         out.write(b"TAGG\x01#EndOfFile#\0")
         out.write(struct.pack("<If", 0, level))
 

@@ -119,16 +119,18 @@ def export_model(request, progress=lambda stage: None):
                 raise RuntimeError(output.read().decode('utf-8', errors='replace').strip())
         progress(4)
         model = scratch / f'{name}.p3d'
-        texture = scratch / 'data' / f'{name}_co.paa'
         from p3d_validation import validate_p3d
         validation = validate_p3d(model)
         source_report = json.loads((scratch / 'validation.json').read_text(encoding='utf-8'))
         for validated, original in zip(validation['lods'], source_report['lods']):
             validated['removedVertices'] = original['removedVertices']
-        if not texture.is_file():
-            raise RuntimeError('Missing P3D or PAA output')
+        data = scratch / 'data'
+        textures = sorted(path.name for path in data.glob('*.paa') if path.is_file())
+        texture_prefix = f'{prefix}\\{name}\\data\\'
+        if not set(validation['textures']).issubset(texture_prefix + file for file in textures):
+            raise RuntimeError('Missing PAA output for a P3D texture reference')
         validation['warnings'] = ['Collision Geometry and Fire Geometry LODs require authoring before in-game use.']
         (scratch / 'validation.json').write_text(json.dumps(validation, indent=2), encoding='utf-8')
         shutil.copytree(scratch, destination)
-    return {'folder': str(destination), 'model': model.name, 'texture': texture.name, 'prefix': prefix,
-            'validation': validation}
+    return {'folder': str(destination), 'model': model.name, 'texture': f'{name}_co.paa',
+            'textures': textures, 'prefix': prefix, 'validation': validation}

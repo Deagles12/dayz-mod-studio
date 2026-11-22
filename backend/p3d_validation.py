@@ -26,6 +26,7 @@ def validate_p3d(path):
         if unpack('<4sII') != (b'MLOD', 257, 3):
             raise ValueError('Expected three visual MLOD LODs')
         lods = []
+        model_textures = set()
         for expected in (1, 2, 3):
             magic, major, minor, points, normals, faces, flags = unpack('<4s6I')
             if (magic, major, minor, flags) != (b'P3DM', 28, 256, 0):
@@ -53,8 +54,9 @@ def validate_p3d(path):
                 textures.add(string())
                 if string():
                     raise ValueError('Unexpected material reference')
-            if len(used) != points or len(textures) != 1 or not next(iter(textures)).endswith('.paa'):
+            if len(used) != points or any(not texture.endswith('.paa') for texture in textures):
                 raise ValueError('Unused vertices or invalid texture assignment')
+            model_textures.update(textures)
             if read(4) != b'TAGG' or read(1) != b'\x01' or string() != '#EndOfFile#':
                 raise ValueError('Invalid LOD tags')
             length, resolution = unpack('<If')
@@ -63,4 +65,5 @@ def validate_p3d(path):
             lods.append(dict(resolution=resolution, vertices=points, normals=normals, triangles=faces))
         if stream.read(1):
             raise ValueError('Unexpected P3D trailing data')
-    return {'lods': lods, 'uv': True, 'materials': 1, 'collision': False}
+    return {'lods': lods, 'uv': True, 'materials': len(model_textures), 'collision': False,
+            'textures': sorted(model_textures)}

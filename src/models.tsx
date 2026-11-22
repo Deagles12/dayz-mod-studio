@@ -9,7 +9,7 @@ import { call, type Settings } from './backend'
 import type { Lang } from './locale'
 import { OutputFolder, useExportFolder } from './export-folder'
 
-type ModelFiles = { folder: string; model: string; texture: string; prefix: string; validation: {
+type ModelFiles = { folder: string; model: string; texture: string; textures?: string[]; prefix: string; validation: {
   lods: {resolution: number; vertices: number; triangles: number; removedVertices: number}[];
   uv: boolean; materials: number; collision: boolean
 } }
@@ -140,7 +140,7 @@ type Activity = 'idle' | 'choosing' | 'running' | 'done' | 'error'
 const stages = [
   ['Завантаження GLB', 'Loading GLB'],
   ['Підготовка меша в Blender', 'Preparing mesh in Blender'],
-  ['Конвертація текстури в PAA', 'Converting texture to PAA'],
+  ['Конвертація текстур у PAA', 'Converting textures to PAA'],
   ['Побудова LOD і запис P3D', 'Building LODs and writing P3D'],
   ['Перевірка й збереження файлів', 'Checking and saving files'],
 ] as const
@@ -299,7 +299,9 @@ export function Models({ language, root, settings, onStatus }: {
     {files && <section className="model-result">
       <h2>{tr('Файли результату', 'Output files')}</h2>
       <code className="model-output-path">{files.folder}</code>
-      <div className="model-file-list"><code>{files.model}</code><code>data\{files.texture}</code></div>
+      <div className="model-file-list"><code>{files.model}</code>
+        {(files.textures ?? [files.texture]).map(texture=><code key={texture}>data\{texture}</code>)}
+      </div>
       <h2>{tr('Перевірка P3D','P3D validation')}</h2>
       {files.validation.lods.map(lod=><div key={lod.resolution}>LOD {lod.resolution} · {lod.vertices} {tr('вершин','vertices')} · {lod.triangles} {tr('трикутників','triangles')} · {tr('видалено невикористаних','unused removed')} {lod.removedVertices}</div>)}
       <p>UV ✓ · {tr('Матеріалів','Materials')} {files.validation.materials}</p>
