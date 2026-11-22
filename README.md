@@ -1,8 +1,12 @@
-# DayZ Mod Studio
+<h1 align="center">DayZ Mod Studio</h1>
 
-DayZ Mod Studio - програма для Windows x64. Вона збирає й тестує моди DayZ, відкриває моделі P3D та конвертує моделі й текстури.
+<p align="center">Збірка й тестування модів DayZ, перегляд P3D та конвертація моделей і текстур.</p>
 
-[![Завантажити останній реліз DayZ Mod Studio для Windows x64](assets/download-latest.svg)](https://github.com/Deagles12/dayz-mod-studio/releases/latest)
+<p align="center">
+  <a href="https://github.com/Deagles12/dayz-mod-studio/releases/latest">
+    <img src="assets/download-latest.svg" alt="Завантажити останній реліз DayZ Mod Studio для Windows x64">
+  </a>
+</p>
 
 ![Екран швидкої збірки в DayZ Mod Studio](assets/dayz-mod-studio-quick-build.png)
 
