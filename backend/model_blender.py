@@ -13,6 +13,7 @@ from mathutils import Vector
 
 source, stage, converter, prefix, stem = sys.argv[sys.argv.index("--") + 1:]
 stage = Path(stage)
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def progress(step):
@@ -20,7 +21,7 @@ def progress(step):
         file.write(f"{step}\n")
 
 
-def base_color_png(material):
+def base_color_image(material):
     if material is None or material.node_tree is None:
         raise ValueError("Every mesh surface needs a textured Base Color material.")
     shader = next((node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED"), None)
@@ -28,10 +29,21 @@ def base_color_png(material):
     image = links[0].from_node.image if links and links[0].from_node.type == "TEX_IMAGE" else None
     if image is None or not image.packed_file:
         raise ValueError(f"Material {material.name!r} needs an embedded Base Color texture.")
-    packed = image.packed_file.data
-    if not packed.startswith(b"\x89PNG\r\n\x1a\n"):
-        raise ValueError(f"Material {material.name!r} needs a PNG Base Color texture.")
-    return packed
+    return image
+
+
+def write_png(image, packed, destination):
+    if packed.startswith(PNG_SIGNATURE):
+        destination.write_bytes(packed)
+        return
+    original_format = image.file_format
+    try:
+        image.file_format = "PNG"
+        image.save(filepath=str(destination), save_copy=True)
+    except RuntimeError as error:
+        raise ValueError(f"Blender could not convert the embedded Base Color texture {image.name!r} to PNG.") from error
+    finally:
+        image.file_format = original_format
 
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -64,15 +76,17 @@ bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 if len(parts) > 1:
     bpy.ops.object.join()
 
-texture_by_png = {}
+texture_by_data = {}
 material_textures = {}
 for index in sorted({face.material_index for face in obj.data.polygons}):
     slot = obj.material_slots[index] if index < len(obj.material_slots) else None
-    packed = base_color_png(slot.material if slot else None)
-    if packed not in texture_by_png:
-        suffix = "" if not texture_by_png else f"_{len(texture_by_png) + 1:02d}"
-        texture_by_png[packed] = f"{stem}{suffix}_co"
-    material_textures[index] = f"{prefix}\\{stem}\\data\\{texture_by_png[packed]}.paa".encode("ascii")
+    image = base_color_image(slot.material if slot else None)
+    packed = image.packed_file.data
+    if packed not in texture_by_data:
+        suffix = "" if not texture_by_data else f"_{len(texture_by_data) + 1:02d}"
+        texture_by_data[packed] = (f"{stem}{suffix}_co", image)
+    name, _ = texture_by_data[packed]
+    material_textures[index] = f"{prefix}\\{stem}\\data\\{name}.paa".encode("ascii")
 
 obj.data.calc_loop_triangles()
 used = {vertex for triangle in obj.data.loop_triangles for vertex in triangle.vertices}
@@ -93,10 +107,10 @@ data = stage / "data"
 data.mkdir()
 with tempfile.TemporaryDirectory(prefix="dayz-paa-") as temp:
     scratch = Path(temp)
-    for packed, texture_name in texture_by_png.items():
+    for packed, (texture_name, image) in texture_by_data.items():
         png = scratch / (texture_name + ".png")
         paa = scratch / (texture_name + ".paa")
-        png.write_bytes(packed)
+        write_png(image, packed, png)
         subprocess.run([converter, png.name, paa.name], cwd=scratch, check=True, timeout=60)
         with paa.open("rb") as file:
             if file.read(2) not in (b"\x01\xff", b"\x03\xff", b"\x05\xff"):

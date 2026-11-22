@@ -1,7 +1,7 @@
 {
   "$schema":"https://schema.tauri.app/config/2",
   "productName":"DayZ Mod Studio",
-  "version":"2.3.6",
+  "version":"2.3.7",
   "identifier":"studio.dayz.mod",
   "build":{"beforeBuildCommand":"npm run build","beforeDevCommand":"npm run dev","devUrl":"http://127.0.0.1:1420","frontendDist":"../dist"},
   "app":{"windows":[{"label":"main","title":"DayZ Mod Studio","width":1120,"height":770,"minWidth":640,"minHeight":490,"decorations":false}],"security":{"csp":"default-src 'self'; img-src 'self' blob: data:; connect-src ipc: http://ipc.localhost blob:; style-src 'self' 'unsafe-inline'"}},
