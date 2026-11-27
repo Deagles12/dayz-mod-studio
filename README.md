@@ -124,6 +124,33 @@ $process.ExitCode
 | `1` | Помилка виконання, зокрема часткова помилка конвертації |
 | `2` | Помилка синтаксису аргументів |
 
+## AI Agent Integration
+
+У папці `skills/` є окремий набір Agent Skills для Codex, OpenCode, Claude Code, Hermes Agent та інших сумісних хостів. Він навчає агента реальному CLI DayZ Mod Studio, стану проєкту, збірці/підпису, локальному тесту, SSH/SFTP, Workshop, текстурам і моделям, а також правилам безпеки.
+
+- Англійська інструкція: `skills/README.md`
+- Українська інструкція: `skills/README_UA.md`
+- Версія набору: `skills/VERSION`
+- Історія змін: `skills/CHANGELOG.md`
+
+Встановлення у Windows (PowerShell 7+):
+
+~~~powershell
+pwsh -NoProfile -File .\skills\install.ps1 -Agents all
+pwsh -NoProfile -File .\skills\install.ps1 -Agents all -Scope project -ProjectPath "D:\Mods\MyMod"
+~~~
+
+Встановлення на Linux/macOS для хостів агентів:
+
+~~~bash
+chmod +x skills/install.sh skills/update.sh skills/uninstall.sh
+./skills/install.sh --agents all
+~~~
+
+Інсталятор типово створює junction/symlink на єдине джерело, за потреби — копію. Він веде маніфест власності й не видаляє чужі skills. Оновлення — `update.ps1`/`update.sh`, безпечне видалення — `uninstall.ps1`/`uninstall.sh`. Деталі, цільові папки та обмеження описані в `skills/README_UA.md`.
+
+Публікація у Workshop і розгортання на продакшн-сервері потребують явного дозволу. Набір не замінює перевірку геймплею в грі.
+
 ## Збірка з вихідного коду
 
 Для Windows-збірки потрібні Node.js з npm, Python, Rust для цілі `x86_64-pc-windows-msvc`, MSVC Build Tools і Windows SDK.
